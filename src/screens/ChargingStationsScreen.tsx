@@ -12,10 +12,12 @@ import {
   FlatList,
   SafeAreaView,
   Switch,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Feather';
 import StationCard from '../components/StationCard';
+import { useNavigation } from '@react-navigation/native';
 
 const COLORS = {
   primary: '#00AB82',
@@ -79,6 +81,7 @@ const stationsData: Station[] = [
 ];
 
 const ChargingStationsScreen = () => {
+  const navigation = useNavigation<any>();
   const [search, setSearch] = useState('');
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -111,9 +114,34 @@ const ChargingStationsScreen = () => {
     return matchesSearch && matchesAvailable;
   });
 
-  const handleStationPress = (station: Station) => {
-    console.log('Pressed:', station.name);
-  };
+const handleStationPress = (station: Station) => {
+  if (!user) {
+    // Flow 2: Users that are not logged in see an alert
+    Alert.alert(
+      "Login Required", 
+      "Please login or sign up to view details and make a booking.",
+      [{ text: "OK" }]
+    );
+    return; // Stop the function here so it doesn't continue
+  } 
+
+  // NEW LOGIC: Check if the station is full
+  // station.available is something like "0/5". 
+  // .split('/')[0] grabs the first part before the slash (the "0").
+  const availableCount = parseInt(station.available.split('/')[0]);
+  
+  if (availableCount === 0) {
+    // Prevent booking if full
+    Alert.alert(
+      "Station Full", 
+      "Sorry, there are no available charging slots at this station right now. Please choose another station.",
+      [{ text: "OK" }]
+    );
+  } else {
+    // Flow 1: User is logged in AND slots are available -> go to booking screen
+    navigation.navigate('MakeBookingScreen', { station: station });
+  }
+};
 
   return (
     <SafeAreaView style={styles.container}>
