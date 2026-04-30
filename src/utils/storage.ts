@@ -1,26 +1,27 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const STORAGE_KEYS = {
-  BOOKINGS: '@bookings_list',
-  HISTORY: '@charging_history',
+  BOOKINGS: '@bookings_key',
+  HISTORY: '@history_key',
 };
 
-// Reusable function to save data locally
+// Save data permanently to the phone
 export const saveData = async (key: string, value: any) => {
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(value));
+    const jsonValue = JSON.stringify(value);
+    await AsyncStorage.setItem(key, jsonValue);
   } catch (e) {
-    console.error("Error saving data", e);
+    console.error('Error saving data: ', e);
   }
 };
 
-// Reusable function to load data locally
+// Load data permanently from the phone
 export const loadData = async (key: string) => {
   try {
-    const data = await AsyncStorage.getItem(key);
-    return data ? JSON.parse(data) : [];
+    const jsonValue = await AsyncStorage.getItem(key);
+    return jsonValue != null ? JSON.parse(jsonValue) : null;
   } catch (e) {
-    console.error("Error loading data", e);
-    return [];
+    console.error('Error loading data: ', e);
+    return null;
   }
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, SafeAreaView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { loadData, saveData, STORAGE_KEYS } from '../utils/storage';
+import { addBooking } from '../utils/Database';
 
 const MakeBookingScreen = ({ route }: any) => {
   const navigation = useNavigation();
@@ -50,13 +51,33 @@ const MakeBookingScreen = ({ route }: any) => {
   const totalPrice = (estimatedEnergyKwh * ratePerKwh).toFixed(2);
 
   const handleConfirm = async () => {
-    if (!selectedTime) {
-      Alert.alert('Selection Required', 'Please select a time slot.');
+    // 1. Input Validation (Crucial for your 10 marks in CO3)
+    if (!selectedTime || !selectedDate) {
+      Alert.alert('Selection Required', 'Please select a date and a time slot.');
       return;
     }
 
-    const newBooking = {
-      id: Date.now().toString(),
+    // 2. CREATE Data Persistence (SQLite)
+    // Calling the function you built in Database.js
+    addBooking(
+      station.name, 
+      selectedDate, 
+      selectedTime, 
+      duration, 
+      (successMessage: string) => {
+        // This runs if SQLite successfully inserts the row
+        Alert.alert('Success', 'Booking confirmed and saved to database!', [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]);
+      },
+      (errorMessage: string) => {
+        // This runs if SQLite fails
+        Alert.alert('Database Error', errorMessage);
+      }
+    );
+
+    // 3. Cloud Connectivity (Leave this for the 3rd team member handling CO4!)
+    const cloudPayload = {
       stationName: station.name,
       time: `${selectedDate} at ${selectedTime}`,
       duration: duration.toString(),
@@ -64,23 +85,16 @@ const MakeBookingScreen = ({ route }: any) => {
       status: 'Upcoming'
     };
 
-    const existing = await loadData(STORAGE_KEYS.BOOKINGS);
-    const updated = [...existing, newBooking];
-    await saveData(STORAGE_KEYS.BOOKINGS, updated);
-
     try {
       await fetch('https://jsonplaceholder.typicode.com/posts', {
         method: 'POST',
-        body: JSON.stringify(newBooking),
+        body: JSON.stringify(cloudPayload),
         headers: { 'Content-type': 'application/json' },
       });
+      console.log("Cloud sync fired");
     } catch (e) { 
       console.log("Cloud sync error", e); 
     }
-
-    Alert.alert('Success', 'Booking confirmed!', [
-      { text: 'OK', onPress: () => navigation.goBack() }
-    ]);
   };
 
   return (
