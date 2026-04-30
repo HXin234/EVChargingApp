@@ -19,6 +19,7 @@ import AccountScreen from '../screens/AccountScreen';
 import BookingScreen from '../screens/BookingScreen';
 import HistoryScreen from '../screens/HistoryScreen';        
 import DrawerContent from '../components/DrawerContent';    
+import MakeBookingScreen from '../screens/MakingBookingScreen';
 
 // Color configuration for the navigation theme
 const COLORS = {
@@ -220,7 +221,16 @@ export default function AppNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Main" component={DrawerNavigator} />
-        {!isLoggedIn && <Stack.Screen name="Login" component={LoginScreen} />}
+        <Stack.Screen name="Login" component={LoginScreen} />
+        
+        <Stack.Screen 
+          name="MakeBookingScreen" 
+          component={MakeBookingScreen} 
+          options={{ 
+            headerShown: true,           
+            title: 'Make a Booking'      
+          }} 
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
