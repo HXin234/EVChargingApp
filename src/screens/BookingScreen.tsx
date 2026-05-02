@@ -2,15 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Modal, SafeAreaView } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { loadData, saveData, STORAGE_KEYS } from '../utils/storage';
+import { getBookings, deleteBooking, updateBooking } from '../utils/Database';
 
 const BookingScreen = () => {
-  const isFocused = useIsFocused(); // This ensures the screen refreshes when you open the tab
+  const isFocused = useIsFocused();
   const [bookings, setBookings] = useState<any[]>([]);
   
-  // State for the Edit Modal
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [newTime, setNewTime] = useState('');
+
+  // NEW STATES FOR PAYMENT
+  const [isPaymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [bookingToPay, setBookingToPay] = useState<any>(null);
 
   const timeSlots = [
     '08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', 
@@ -18,90 +22,100 @@ const BookingScreen = () => {
     '04:00 PM', '05:00 PM', '06:00 PM', '07:00 PM'
   ];
 
-  // Load data every time the user navigates to this tab
   useEffect(() => {
     if (isFocused) {
       fetchBookings();
     }
   }, [isFocused]);
 
-  const fetchBookings = async () => {
-    const data = await loadData(STORAGE_KEYS.BOOKINGS);
-    setBookings(data || []);
+  const fetchBookings = () => {
+    getBookings((data: any[]) => {
+      const formattedBookings = data.map(item => ({
+        id: item.id,
+        stationName: item.stationName,
+        time: `${item.date} at ${item.time}`,
+        duration: item.duration,
+        totalPrice: (item.duration * 22 * 1.5).toFixed(2), 
+        status: 'Upcoming'
+      }));
+      setBookings(formattedBookings);
+    });
   };
 
-  // --- CRUD: DELETE (Cancel Booking) ---
-  const handleCancel = (id: string) => {
+  const handleCancel = (id: string | number) => {
     Alert.alert('Cancel Booking', 'Are you sure you want to cancel this booking?', [
       { text: 'No', style: 'cancel' },
       { 
         text: 'Yes, Cancel', 
         style: 'destructive',
-        onPress: async () => {
-          const updatedBookings = bookings.filter(b => b.id !== id);
-          setBookings(updatedBookings);
-          await saveData(STORAGE_KEYS.BOOKINGS, updatedBookings);
+        onPress: () => {
+          deleteBooking(id, (successMsg: string) => {
+            Alert.alert('Canceled', successMsg);
+            fetchBookings();
+          });
         }
       }
     ]);
   };
 
-  // --- CRUD: UPDATE (Edit Time) ---
   const openEditModal = (booking: any) => {
     setSelectedBooking(booking);
-    setNewTime(''); // Reset selection
+    setNewTime(''); 
     setEditModalVisible(true);
   };
 
-  const saveUpdatedTime = async () => {
+  const saveUpdatedTime = () => {
     if (!newTime) {
       Alert.alert('Selection Required', 'Please select a new time slot.');
       return;
     }
-
-    // Keep the date part, but change the time
-    const datePart = selectedBooking.time.split(' at ')[0];
-    const updatedTimeStr = `${datePart} at ${newTime}`;
-
-    const updatedBookings = bookings.map(b => 
-      b.id === selectedBooking.id ? { ...b, time: updatedTimeStr } : b
+    updateBooking(
+      selectedBooking.id,
+      newTime,
+      selectedBooking.duration,
+      (successMsg: string) => {
+        Alert.alert('Success', successMsg);
+        setEditModalVisible(false);
+        fetchBookings();
+      },
+      (errorMsg: string) => {
+        Alert.alert('Error', errorMsg);
+      }
     );
-
-    setBookings(updatedBookings);
-    await saveData(STORAGE_KEYS.BOOKINGS, updatedBookings);
-    setEditModalVisible(false);
-    Alert.alert('Success', 'Booking time updated!');
   };
 
-  // --- FLOW: Finish & Move to History ---
-  const finishCharging = async (booking: any) => {
-    // 1. Remove from Bookings
-    const updatedBookings = bookings.filter(b => b.id !== booking.id);
-    setBookings(updatedBookings);
-    await saveData(STORAGE_KEYS.BOOKINGS, updatedBookings);
+  // MODIFIED FUNCTION TO OPEN MODAL INSTEAD OF ALERT
+  const finishCharging = (booking: any) => {
+    setBookingToPay(booking);
+    setPaymentModalVisible(true);
+  };
 
-    // 2. Add to History
-    const history = await loadData(STORAGE_KEYS.HISTORY);
-    const newHistoryRecord = {
-      id: Date.now().toString(),
-      stationName: booking.stationName,
-      date: booking.time,
-      cost: booking.totalPrice,
-      usage: `${booking.duration} hr(s)` // Note: You can calculate actual kWh here if preferred
-    };
-    await saveData(STORAGE_KEYS.HISTORY, [newHistoryRecord, ...history]);
+  // NEW FUNCTION TO PROCESS ACTUAL PAYMENT
+  const confirmPaymentAndSave = async () => {
+    if (!bookingToPay) return;
 
-    Alert.alert('Charging Complete', `Redirecting to payment for RM ${booking.totalPrice}...`);
-    // Note: If you implement a Payment Screen later, you would navigate to it here.
+    deleteBooking(bookingToPay.id, async () => {
+      const history = await loadData(STORAGE_KEYS.HISTORY) || [];
+      const newHistoryRecord = {
+        id: Date.now().toString(),
+        stationName: bookingToPay.stationName,
+        date: bookingToPay.time,
+        cost: bookingToPay.totalPrice,
+        usage: `${bookingToPay.duration} hr(s)` 
+      };
+      await saveData(STORAGE_KEYS.HISTORY, [newHistoryRecord, ...history]);
+
+      setPaymentModalVisible(false);
+      Alert.alert('Success', `Payment of RM ${bookingToPay.totalPrice} successful!`);
+      fetchBookings();
+    });
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Note: Header is handled by the Drawer/Tab navigator based on your screenshot */}
-      
       <FlatList
         data={bookings}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.id.toString()}
         contentContainerStyle={{ paddingBottom: 20 }}
         renderItem={({ item }) => (
           <View style={styles.card}>
@@ -136,13 +150,12 @@ const BookingScreen = () => {
         }
       />
 
-      {/* --- EDIT TIME MODAL --- */}
+      {/* EDIT TIME MODAL */}
       <Modal visible={isEditModalVisible} transparent={true} animationType="slide">
         <View style={styles.modalBg}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Reschedule Booking</Text>
             <Text style={styles.modalSub}>Select a new time for {selectedBooking?.stationName}</Text>
-            
             <View style={styles.timeGrid}>
               {timeSlots.map((time, index) => {
                 const isSelected = newTime === time;
@@ -157,7 +170,6 @@ const BookingScreen = () => {
                 );
               })}
             </View>
-
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setEditModalVisible(false)}>
                 <Text style={styles.modalCancelText}>Close</Text>
@@ -169,6 +181,31 @@ const BookingScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* NEW PAYMENT MODAL */}
+      <Modal visible={isPaymentModalVisible} transparent={true} animationType="fade">
+        <View style={styles.modalBg}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Payment Details</Text>
+            <Text style={styles.modalSub}>Confirm payment for {bookingToPay?.stationName}</Text>
+            
+            <View style={{ marginVertical: 25, alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, color: '#666' }}>Total Amount</Text>
+              <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#00AB82' }}>RM {bookingToPay?.totalPrice}</Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setPaymentModalVisible(false)}>
+                <Text style={styles.modalCancelText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={confirmPaymentAndSave}>
+                <Text style={styles.modalSaveText}>Confirm Pay</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
