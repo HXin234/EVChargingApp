@@ -16,7 +16,7 @@ import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import {
   DrawerContentComponentProps,
 } from '@react-navigation/drawer';
-import { CommonActions, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 
 const COLORS = {
   primary: '#00AB82',
@@ -75,15 +75,11 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
-          await AsyncStorage.removeItem('user');
+          await AsyncStorage.multiRemove(['user', '@user_session']);
           setUser(null);
           setIsLoggedIn(false);
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: 'Main' }],
-            })
-          );
+          navigation.closeDrawer();
+          navigation.navigate('MainTabs', { screen: 'Stations' });
         },
       },
     ]);

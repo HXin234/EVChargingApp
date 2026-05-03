@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, SafeAreaView } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadData, saveData, STORAGE_KEYS } from '../utils/storage';
 
 const HistoryScreen = () => {
   const isFocused = useIsFocused();
   const [history, setHistory] = useState<any[]>([]);
+  const [userEmail, setUserEmail] = useState('');
 
   useEffect(() => {
     if (isFocused) {
@@ -13,12 +15,39 @@ const HistoryScreen = () => {
     }
   }, [isFocused]);
 
+  const getCurrentUserEmail = async () => {
+    const userData =
+      (await AsyncStorage.getItem('user')) ||
+      (await AsyncStorage.getItem('@user_session'));
+
+    if (!userData) return '';
+
+    try {
+      const user = JSON.parse(userData);
+      return user?.email || '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const getUserHistoryKey = (email: string) => `${STORAGE_KEYS.HISTORY}_${email}`;
+
   const fetchHistory = async () => {
-    const data = await loadData(STORAGE_KEYS.HISTORY);
+    const email = await getCurrentUserEmail();
+    setUserEmail(email);
+
+    if (!email) {
+      setHistory([]);
+      return;
+    }
+
+    const data = await loadData(getUserHistoryKey(email));
     setHistory(data || []);
   };
 
   const deleteRecord = (id: string) => {
+    if (!userEmail) return;
+
     Alert.alert('Remove Record', 'Do you want to clear this record from your history?', [
       { text: 'Cancel', style: 'cancel' },
       { 
@@ -27,14 +56,15 @@ const HistoryScreen = () => {
         onPress: async () => {
           const updatedHistory = history.filter(item => item.id !== id);
           setHistory(updatedHistory);
-          await saveData(STORAGE_KEYS.HISTORY, updatedHistory);
+          await saveData(getUserHistoryKey(userEmail), updatedHistory);
         }
       }
     ]);
   };
 
   const clearAllHistory = () => {
-    if (history.length === 0) return;
+    if (!userEmail || history.length === 0) return;
+
     Alert.alert('Clear All History', 'Are you sure you want to delete all past charging records?', [
       { text: 'Cancel', style: 'cancel' },
       { 
@@ -42,7 +72,7 @@ const HistoryScreen = () => {
         style: 'destructive',
         onPress: async () => {
           setHistory([]);
-          await saveData(STORAGE_KEYS.HISTORY, []);
+          await saveData(getUserHistoryKey(userEmail), []);
         }
       }
     ]);
@@ -64,12 +94,10 @@ const HistoryScreen = () => {
         keyExtractor={item => item.id}
         contentContainerStyle={{ paddingBottom: 20 }}
         renderItem={({ item }) => {
-          // --- DYNAMIC MATH CALCULATION ---
-          // Extract the number of hours from "2 hr(s)"
           const hours = parseFloat(item.usage) || 1;
-          const estimatedKwh = hours * 22; // Using our 22kW standard
+          const estimatedKwh = hours * 22;
           const totalCost = parseFloat(item.cost) || 0;
-          const ratePerKwh = (totalCost / estimatedKwh).toFixed(2);
+          const ratePerKwh = estimatedKwh > 0 ? (totalCost / estimatedKwh).toFixed(2) : '0.00';
 
           return (
             <View style={styles.card}>
@@ -82,7 +110,6 @@ const HistoryScreen = () => {
               
               <View style={styles.divider} />
               
-              {/* EXACT ASSIGNMENT REQUIREMENTS */}
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Date & Time:</Text>
                 <Text style={styles.receiptValue}>{item.date}</Text>
@@ -98,7 +125,6 @@ const HistoryScreen = () => {
                 <Text style={styles.receiptValueCost}>RM {item.cost}</Text>
               </View>
 
-              {/* CALCULATION BREAKDOWN */}
               <View style={styles.calculationBox}>
                 <Text style={styles.calcTitle}>Calculation Breakdown:</Text>
                 <Text style={styles.calcText}>
@@ -117,8 +143,8 @@ const HistoryScreen = () => {
         }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No Past Records</Text>
-            <Text style={styles.emptySub}>Your completed charging sessions will appear here.</Text>
+            <Text style={styles.emptyTitle}>{userEmail ? 'No Past Records' : 'Login Required'}</Text>
+            <Text style={styles.emptySub}>{userEmail ? 'Your completed charging sessions will appear here.' : 'Please login to view your charging history.'}</Text>
           </View>
         }
       />

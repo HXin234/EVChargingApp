@@ -3,7 +3,7 @@
  * Main dashboard showing available EV stations with search and filtering.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Feather';
 import StationCard from '../components/StationCard';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 const COLORS = {
   primary: '#00AB82',
@@ -86,15 +86,23 @@ const ChargingStationsScreen = () => {
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
   const [user, setUser] = useState<any>(null);
 
-  useEffect(() => {
-    loadUser();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUser();
+    }, [])
+  );
+
+  const getCurrentUser = async () => {
+    const userData =
+      (await AsyncStorage.getItem('user')) ||
+      (await AsyncStorage.getItem('@user_session'));
+
+    return userData ? JSON.parse(userData) : null;
+  };
 
   const loadUser = async () => {
-    const userData = await AsyncStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    const currentUser = await getCurrentUser();
+    setUser(currentUser);
   };
 
   /**
@@ -114,13 +122,19 @@ const ChargingStationsScreen = () => {
     return matchesSearch && matchesAvailable;
   });
 
-const handleStationPress = (station: Station) => {
-  if (!user) {
+const handleStationPress = async (station: Station) => {
+  const currentUser = await getCurrentUser();
+  setUser(currentUser);
+
+  if (!currentUser) {
     // Flow 2: Users that are not logged in see an alert
     Alert.alert(
       "Login Required", 
       "Please login or sign up to view details and make a booking.",
-      [{ text: "OK" }]
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Login", onPress: () => navigation.navigate('Login') },
+      ]
     );
     return; // Stop the function here so it doesn't continue
   } 
@@ -135,7 +149,10 @@ const handleStationPress = (station: Station) => {
     Alert.alert(
       "Station Full", 
       "Sorry, there are no available charging slots at this station right now. Please choose another station.",
-      [{ text: "OK" }]
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Login", onPress: () => navigation.navigate('Login') },
+      ]
     );
   } else {
     // Flow 1: User is logged in AND slots are available -> go to booking screen

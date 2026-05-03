@@ -26,7 +26,10 @@ const AccountScreen = ({ navigation }: any) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const loadUser = async () => {
-    const userData = await AsyncStorage.getItem('user');
+    const userData =
+      (await AsyncStorage.getItem('user')) ||
+      (await AsyncStorage.getItem('@user_session'));
+
     if (userData) {
       setUser(JSON.parse(userData));
       setIsLoggedIn(true);
@@ -62,7 +65,7 @@ const AccountScreen = ({ navigation }: any) => {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            await AsyncStorage.removeItem('user');
+            await AsyncStorage.multiRemove(['user', '@user_session']);
             setUser(null);
             setIsLoggedIn(false);
             Alert.alert('Success', 'Logged out successfully');

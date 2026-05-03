@@ -58,6 +58,7 @@ export default function LoginScreen({ navigation }: any) {
       
       if (found) {
         await AsyncStorage.setItem('user', JSON.stringify(found));
+        await AsyncStorage.setItem('@user_session', JSON.stringify(found));
         Alert.alert('Success', 'Logged in successfully');
         navigation.replace('Main');
       } else {
@@ -83,6 +84,7 @@ export default function LoginScreen({ navigation }: any) {
       userList.push(newUser);
       await AsyncStorage.setItem('users', JSON.stringify(userList));
       await AsyncStorage.setItem('user', JSON.stringify(newUser));
+      await AsyncStorage.setItem('@user_session', JSON.stringify(newUser));
       Alert.alert('Success', 'Account created successfully');
       navigation.replace('Main');
     }
