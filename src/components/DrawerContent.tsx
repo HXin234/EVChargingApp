@@ -91,14 +91,22 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
   const handleNavigation = (screenName: string) => {
     navigation.closeDrawer();
     
-    if (screenName === 'Booking') {
-      navigation.navigate('MainTabs', {
-        screen: 'My Booking',
-      });
-    } else if (screenName === 'History') {
-      navigation.navigate('History');
-    } else if (screenName === 'MainTabs') {
-      navigation.navigate('MainTabs');
+    switch (screenName) {
+      case 'Booking':
+        navigation.navigate('MainTabs', {
+          screen: 'My Booking',
+        });
+        break;
+      case 'History':
+        navigation.navigate('History');
+        break;
+      case 'MainTabs':
+          navigation.navigate('MainTabs', {
+            screen: 'Stations',
+          });
+        break;
+      default:
+        navigation.navigate('MainTabs');
     }
   };
 
