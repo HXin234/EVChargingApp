@@ -149,19 +149,21 @@ const ChargingStationsScreen = () => {
         try {
           const userBookings = await getAllBookings(userEmail);
 
+          const today = new Date().toLocaleDateString('en-US');
+
           // Count active bookings for each station
           userBookings.forEach((booking: any) => {
-            if (booking.status === 'Upcoming') {
-              const stationId = getStationIdByName(booking.stationName);
-              if (stationId) {
-                bookingCounts[stationId]++;
-              }
+          if (booking.status === 'Upcoming' && booking.date === today) {
+            const stationId = getStationIdByName(booking.stationName);
+            if (stationId) {
+              bookingCounts[stationId]++;
             }
-          });
-        } catch (error) {
-          console.log('Could not fetch bookings from cloud, using default values');
-        }
+          }
+        });
+      } catch (error) {
+        console.log('Could not fetch bookings from cloud');
       }
+    }
 
       // Build stations with calculated availability
       const stationsWithAvailability = baseStationsData.map((baseStation) => {
