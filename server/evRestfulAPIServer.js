@@ -11,7 +11,7 @@
  *
  * Run:
  *   cd server
- *   node evServer.js
+ *   node evRestfulAPIServer.js
  *
  * Requires:
  *   npm install express sqlite3 cors
@@ -19,7 +19,7 @@
 
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const path    = require('path');
 const cors    = require('cors');
 
 const app = express();
@@ -43,9 +43,9 @@ function rowToDict(row) {
 }
 
 // ─── GET /api/bookings?email=xxx ──────────────────────────────────────────────
-// Returns bookings for a specific user only (filtered by userEmail query param).
 app.get('/api/bookings', (req, res) => {
   const { email } = req.query;
+  console.log(`[REST] GET /api/bookings?email=${email}`);
 
   if (!email) {
     return res.status(400).json({ error: 'email query parameter is required.' });
@@ -57,7 +57,11 @@ app.get('/api/bookings', (req, res) => {
     'SELECT * FROM Bookings WHERE userEmail = ? ORDER BY id DESC',
     [email],
     (err, rows) => {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        console.log(`[REST] GET /api/bookings ERROR: ${err.message}`);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log(`[REST] GET /api/bookings -> returned ${rows.length} record(s) for ${email}`);
       res.status(200).json(rows.map(rowToDict));
     }
   );
@@ -67,13 +71,19 @@ app.get('/api/bookings', (req, res) => {
 
 // ─── GET /api/bookings/:id ────────────────────────────────────────────────────
 app.get('/api/bookings/:id', (req, res) => {
+  console.log(`[REST] GET /api/bookings/${req.params.id}`);
+
   const db = new sqlite3.Database(DB);
 
   db.get(
     'SELECT * FROM Bookings WHERE id = ?',
     [req.params.id],
     (err, row) => {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        console.log(`[REST] GET /api/bookings/${req.params.id} ERROR: ${err.message}`);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log(`[REST] GET /api/bookings/${req.params.id} -> ${row ? 'found' : 'not found'}`);
       res.status(200).json(row ? rowToDict(row) : null);
     }
   );
@@ -82,12 +92,12 @@ app.get('/api/bookings/:id', (req, res) => {
 });
 
 // ─── POST /api/bookings ───────────────────────────────────────────────────────
-// Body: { userEmail, stationName, date, time, duration, totalPrice, status }
 app.post('/api/bookings', (req, res) => {
   console.log('[REST] POST /api/bookings payload:', req.body);
   const { userEmail, stationName, date, time, duration, totalPrice, status } = req.body;
 
   if (!userEmail || !stationName || !date || !time || !duration || totalPrice === undefined || totalPrice === null) {
+    console.log('[REST] POST /api/bookings ERROR: Missing required fields');
     return res.status(400).json({ error: 'All fields including userEmail are required.' });
   }
 
@@ -98,7 +108,11 @@ app.post('/api/bookings', (req, res) => {
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [userEmail, stationName, date, time, duration, totalPrice, status || 'Upcoming'],
     function (err) {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        console.log(`[REST] POST /api/bookings ERROR: ${err.message}`);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log(`[REST] POST /api/bookings -> booking created, id: ${this.lastID}`);
       res.status(201).json({ id: this.lastID, affected: this.changes });
     }
   );
@@ -107,14 +121,16 @@ app.post('/api/bookings', (req, res) => {
 });
 
 // ─── PUT /api/bookings/:id ────────────────────────────────────────────────────
-// Body: { id, time, duration }
 app.put('/api/bookings/:id', (req, res) => {
+  console.log(`[REST] PUT /api/bookings/${req.params.id} payload:`, req.body);
   const { id, time, duration } = req.body;
 
   if (!id || parseInt(id) !== parseInt(req.params.id)) {
+    console.log(`[REST] PUT /api/bookings/${req.params.id} ERROR: id mismatch`);
     return res.status(400).json({ error: 'Booking id mismatch or missing.' });
   }
   if (!time || !duration) {
+    console.log(`[REST] PUT /api/bookings/${req.params.id} ERROR: time or duration missing`);
     return res.status(400).json({ error: 'Time and duration are required.' });
   }
 
@@ -124,7 +140,11 @@ app.put('/api/bookings/:id', (req, res) => {
     'UPDATE Bookings SET time = ?, duration = ? WHERE id = ?',
     [time, duration, req.params.id],
     function (err) {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        console.log(`[REST] PUT /api/bookings/${req.params.id} ERROR: ${err.message}`);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log(`[REST] PUT /api/bookings/${req.params.id} -> updated, affected: ${this.changes}`);
       res.status(200).json({ id: req.params.id, affected: this.changes });
     }
   );
@@ -133,11 +153,12 @@ app.put('/api/bookings/:id', (req, res) => {
 });
 
 // ─── DELETE /api/bookings/:id ─────────────────────────────────────────────────
-// Body: { id }
 app.delete('/api/bookings/:id', (req, res) => {
+  console.log(`[REST] DELETE /api/bookings/${req.params.id} payload:`, req.body);
   const { id } = req.body;
 
   if (!id || parseInt(id) !== parseInt(req.params.id)) {
+    console.log(`[REST] DELETE /api/bookings/${req.params.id} ERROR: id mismatch`);
     return res.status(400).json({ error: 'Booking id mismatch or missing.' });
   }
 
@@ -147,7 +168,11 @@ app.delete('/api/bookings/:id', (req, res) => {
     'DELETE FROM Bookings WHERE id = ?',
     [req.params.id],
     function (err) {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        console.log(`[REST] DELETE /api/bookings/${req.params.id} ERROR: ${err.message}`);
+        return res.status(500).json({ error: err.message });
+      }
+      console.log(`[REST] DELETE /api/bookings/${req.params.id} -> deleted, affected: ${this.changes}`);
       res.status(200).json({ id: req.params.id, affected: this.changes });
     }
   );
@@ -159,5 +184,7 @@ app.delete('/api/bookings/:id', (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`EV Charging REST API server running on port ${PORT}`);
+  console.log('================================================');
+  console.log(' EV Charging REST API server running on port ' + PORT);
+  console.log('================================================');
 });
